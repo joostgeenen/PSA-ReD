@@ -1,6 +1,7 @@
-# PSA-ReD
-# An R script for generating PSA-ReD plots. 
+# PSA-ReD: An R script for generating PSA-ReD plots. 
 # Built using R 3.5.2
+# Described in the publication titled "Increasing the information provided by probabilistic sensitivity analysis: The relative density plot"
+
 
 Required software: 
 - R
