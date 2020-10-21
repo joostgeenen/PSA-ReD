@@ -1,5 +1,5 @@
-# PSA-ReD Plot Generator v1.0.1. Use this script to make your own PSA-ReD plots.  
-# Copyright (C) 2019, Joost Geenen
+# PSA-ReD Plot Generator v1.0.2. Use this script to make your own PSA-ReD plots.  
+# Copyright (C) 2020, Joost Geenen
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the
 # Free Software Foundation, either version 3 of the License, 
@@ -19,41 +19,35 @@
 
 ### -------------- Do not change the part in between / below -------------- ###
 ### ----------------------------------------------------------------------- ###
-
-# The code below installs and/or loads the required packages. 
-
 if (!require('ggplot2')) {
-  install.packages("ggplot2", dependencies = TRUE)
+  install.packages("ggplot2")
 }
 library('ggplot2')
 
 if (!require('MASS')) {
-  install.packages("MASS", dependencies = TRUE)
+  install.packages("MASS")
 }
 library('MASS')
 
 if (!require('directlabels')) {
-  install.packages("directlabels", dependencies = TRUE)
+  install.packages("directlabels")
 }
 library('directlabels')
 
 if (!require('grid')) {
-  install.packages("grid", dependencies = TRUE)
+  install.packages("grid")
 }
 library('grid')
 
 if (!require('gridExtra')) {
-  install.packages("gridExtra", dependencies = TRUE)
+  install.packages("gridExtra")
 }
 library('gridExtra')
 
 if (!require('reshape2')) {
-  install.packages("reshape2", dependencies = TRUE)
+  install.packages("reshape2")
 }
 library('reshape2')
-
-
-# The code below loades custom functions
 
 ProcessContourData <- function(kde.data) {
   # Processess kde data for plotting the contours.  
@@ -65,22 +59,19 @@ ProcessContourData <- function(kde.data) {
   # Returns: 
   #  A dataframe containing the cumulative density per x and y.
   
-  kde.dx <- diff(kde.data$x[1:2]) # Width of 1 bin (x-axis)
-  kde.dy <- diff(kde.data$y[1:2]) # Height of 1 bin (y-axis) 
-  kde.sz <- sort(kde.data$z)      # Sorted density per bin      
-  kde_c1 <- cumsum(kde.sz) * kde.dx * kde.dy # Sorted density per bin area
+  kde.dx <- diff(kde.data$x[1:2]) 
+  kde.dy <- diff(kde.data$y[1:2]) 
+  kde.sz <- sort(kde.data$z)       
+  kde_c1 <- cumsum(kde.sz) * kde.dx * kde.dy 
   
-  dimnames(kde.data$z) <- list(kde.data$x, kde.data$y) # Density per x and y 
-  kde_dc <- melt(kde.data$z)      # Melt list 
-  
-  # Interpolate the density values to a range of [1,0]
-  # This yields cumulative probability as density is sorted from high to low
+  dimnames(kde.data$z) <- list(kde.data$x, kde.data$y)
+  kde_dc <- melt(kde.data$z)   
   kde_dc$contour.levels <- approx(kde.sz, 1 - kde_c1, kde_dc$value)$y 
   
-  # Convert to data.frame
-  plot.data.contour <- data.frame(x = kde_dc[, 1],
-                                  y = kde_dc[, 2],
-                                  contour.levels = kde_dc[, 4])
+  plot.data.contour <- cbind.data.frame(kde_dc[, 1], kde_dc[, 2], kde_dc[, 4])
+  colnames(plot.data.contour)[1] <- "x"
+  colnames(plot.data.contour)[2] <- "y"
+  colnames(plot.data.contour)[3] <- "contour.levels"
   return(plot.data.contour)
 }
 
@@ -106,6 +97,7 @@ GenerateNormalisedDensity <- function(kde.data) {
   return(df.density.normalised)
 }
 
+
 GeneratePlot <- function(df.density.normalised, 
                          legend.title,
                          plot.data.contour,
@@ -113,6 +105,8 @@ GeneratePlot <- function(df.density.normalised,
                          font.size,
                          font.face,
                          font.family,
+                         plot.type,
+                         grayscale,
                          x.axis.title,
                          y.axis.title,
                          x.range,
@@ -136,6 +130,9 @@ GeneratePlot <- function(df.density.normalised,
   #                          in the plot
   #   font.family:           The font family (ie, sans) of the characters
   #                          in the plot
+  #   plot.type              A string containing the plot type, which can be
+  #                          "combined", "density" or "contour"
+  #   grayscale               A boolean specifying the use of a graysacele  
   #   x.axis.title:          The x-axis title. 
   #   y.axis.title:          The y-axis title.
   #   x.range:               The range of values on the x-axis, 
@@ -152,6 +149,12 @@ GeneratePlot <- function(df.density.normalised,
   #
   # Returns:
   #   A gtable object with the plot data.  
+  
+  if (grayscale == TRUE){
+    color.palette <- "Greys"
+  } else {
+    color.palette <- "Spectral"
+  }
   
   if (missing(x.range)) {
     x.range <- c(min(df.density.normalised$X), max(df.density.normalised$X))
@@ -180,7 +183,7 @@ GeneratePlot <- function(df.density.normalised,
                        "draw.rects")
   
   if (!is.null(WTP.thresholds)) {
-    # Initialise segment dataframe
+    #init segment dataframe
     segment.df <- as.data.frame(matrix(0, ncol = 6, 
                                        nrow = length(WTP.thresholds)))
     min.x <- min(df.density.normalised$X)
@@ -189,7 +192,7 @@ GeneratePlot <- function(df.density.normalised,
     max.y <- max(df.density.normalised$Y)
     colnames(segment.df) <- c("segment,start.x", "segment.end.x",
                               "min.y", "max.y", "WTP Threshold", "i")
-    # Calculate the coordinates of each WTP segment 
+    # calculate the coordinates of each WTP segment 
     for(i in 1:length(WTP.thresholds)) {
       segment.start.x <- min.y / WTP.thresholds[i]
       segment.end.x <- max.y / WTP.thresholds[i]
@@ -203,7 +206,7 @@ GeneratePlot <- function(df.density.normalised,
         min.y <- WTP.thresholds[i] * min.x
       }
       
-      # For when a segment is entirely out of the plot window
+      # if a segment is entirely out of the plot window:
       if( segment.start.x > max.x){
         segment.start.x <- min.x
         segment.end.x <- min.x
@@ -217,40 +220,84 @@ GeneratePlot <- function(df.density.normalised,
   } 
   
   # Generate plot using ggplot() call
-  plot.contour <- ggplot(data = df.density.normalised, 
-                         aes(x = X, y = Y, z = Z)) + 
-    geom_tile(aes(fill = Z), alpha = 1) + 
-    scale_fill_distiller(name      = legend.title,
-                         palette   = "Spectral", 
-                         direction = -1,
-                         guide     = "colourbar") + 
-    theme_minimal()  +
-    geom_contour(aes(z  = plot.data.contour$contour.levels),
-                 breaks = rev(contour.levels),
-                 size   = 0.5,
-                 colour = "black") +
-    theme(panel.grid.major = element_line(colour = "gray30", size = 0.25),
-          panel.grid.minor = element_line(colour = "gray30", size = 0.25),
-          panel.ontop      = TRUE,
-          text             = element_text(size = font.size, 
-                                          family = font.family, 
-                                          face   = font.face),
-          legend.spacing.y = unit(0.15, "cm")) +
-    labs(x = x.axis.title, 
-         y = y.axis.title) +
-    guides(fill = guide_colourbar(barheight = density.barheight))
+  
+  if (plot.type == "contour") {
+    #plot only contour
+    plot.contour <- ggplot(data = df.density.normalised, 
+                           aes(x = X, y = Y, z = Z)) + 
+      theme_minimal()  +
+      geom_contour(aes(z  = plot.data.contour$contour.levels),
+                   breaks = rev(contour.levels),
+                   size   = 0.5,
+                   colour = "black") +
+      theme(panel.grid.major = element_line(colour = "gray30", size = 0.25),
+            panel.grid.minor = element_line(colour = "gray30", size = 0.25),
+            panel.ontop      = TRUE,
+            text             = element_text(size = font.size, 
+                                            family = font.family, 
+                                            face   = font.face),
+            legend.spacing.y = unit(0.15, "cm")) +
+      labs(x = x.axis.title, 
+           y = y.axis.title) +
+      guides(fill = guide_colourbar(barheight = density.barheight))
+    
+  } else if (plot.type == "density") {  
+    #plot only density
+    plot.contour <- ggplot(data = df.density.normalised, 
+                           aes(x = X, y = Y, z = Z)) + 
+      geom_tile(aes(fill = Z), alpha = 1) + 
+      scale_fill_distiller(name      = legend.title,
+                           palette   = color.palette, 
+                           direction = -1,
+                           guide     = "colourbar") + 
+      theme_minimal()  +
+      theme(panel.grid.major = element_line(colour = "gray30", size = 0.25),
+            panel.grid.minor = element_line(colour = "gray30", size = 0.25),
+            panel.ontop      = TRUE,
+            text             = element_text(size = font.size, 
+                                            family = font.family, 
+                                            face   = font.face),
+            legend.spacing.y = unit(0.15, "cm")) +
+      labs(x = x.axis.title, 
+           y = y.axis.title) +
+      guides(fill = guide_colourbar(barheight = density.barheight))
+    
+  } else {
+    #default combined plot, displaying both density and contours  
+    plot.contour <- ggplot(data = df.density.normalised, 
+                           aes(x = X, y = Y, z = Z)) + 
+      geom_tile(aes(fill = Z), alpha = 1) + 
+      scale_fill_distiller(name      = legend.title,
+                           palette   = color.palette, 
+                           direction = -1,
+                           guide     = "colourbar") + 
+      theme_minimal()  +
+      geom_contour(aes(z  = plot.data.contour$contour.levels),
+                   breaks = rev(contour.levels),
+                   size   = 0.5,
+                   colour = "black") +
+      theme(panel.grid.major = element_line(colour = "gray30", size = 0.25),
+            panel.grid.minor = element_line(colour = "gray30", size = 0.25),
+            panel.ontop      = TRUE,
+            text             = element_text(size = font.size, 
+                                            family = font.family, 
+                                            face   = font.face),
+            legend.spacing.y = unit(0.15, "cm")) +
+      labs(x = x.axis.title, 
+           y = y.axis.title) +
+      guides(fill = guide_colourbar(barheight = density.barheight))
+  }
   
   if (!is.null(WTP.thresholds)) {
-    element.list <- append(element.list, 
-                           geom_segment(data = segment.df, 
-                                        aes(x    = segment.df[, 1],
-                                            xend = segment.df[, 2],
-                                            y    = segment.df[, 3],
-                                            yend = segment.df[, 4], 
-                                            linetype = WTP),
-                                        color = "black",
-                                        size  = 0.5,
-                                        inherit.aes = F)) 
+    element.list <- append(element.list, geom_segment(data = segment.df, 
+                                                      aes(x    = segment.df[, 1],
+                                                          xend = segment.df[, 2],
+                                                          y    = segment.df[, 3],
+                                                          yend = segment.df[, 4], 
+                                                          linetype = WTP),
+                                                      color = "black",
+                                                      size  = 0.5,
+                                                      inherit.aes = F)) 
   } 
   
   if (!is.null(average.PSA) & !is.null(basecase)) {
@@ -313,36 +360,35 @@ GeneratePlot <- function(df.density.normalised,
                                               labels = c("Base case")))
   }
   
-  element.list <- append(element.list, 
-                         geom_dl(aes(label = ..level.., 
-                                     x = plot.data.contour$x,
-                                     y = plot.data.contour$y, 
-                                     z = plot.data.contour$contour.levels, 
-                                     fontface = "bold"),
-                                 inherit.aes = F,
-                                 color = "gray15",
-                                 cex = 0.75,
-                                 method = label.list1,
-                                 stat = "contour", 
-                                 breaks = rev(contour.levels)))
+  element.list <- append(element.list, geom_dl(aes(label = ..level.., 
+                                                   x = plot.data.contour$x,
+                                                   y = plot.data.contour$y, 
+                                                   z = plot.data.contour$contour.levels, 
+                                                   fontface = "bold"),
+                                               inherit.aes = F,
+                                               color = "gray15",
+                                               cex = 0.75,
+                                               method = label.list1,
+                                               stat = "contour", 
+                                               breaks = rev(contour.levels)))
   
   if (clipping == FALSE) {
-    # Limits rendering to given coordinates, 
+    # limits rendering to given coordinates, 
     # does not exclude (clip) data during plot generation
     element.list <- append(element.list, coord_cartesian(xlim = x.range,
                                                          ylim = y.range,
                                                          expand = FALSE))
   } else {
-    # Clip datapoints to fall within a range
+    #clip datapoints to fall within a range
     element.list <- append(element.list, xlim(x.range))
     element.list <- append(element.list, ylim(y.range))                           
   }
   
-  # Add elements stored in element.list
+  #add elements stored in list
   plot.contour <- plot.contour + element.list
   
   if (extend.panel == TRUE) {
-    # Extend the plot panel outside of the density area
+    # extend the plot panel outside of the density area
     # so that contour labels are not partially cropped. 
     plot.contour <- ggplot_gtable(ggplot_build(plot.contour))
     plot.contour$layout$clip[plot.contour$layout$name == "panel"] <- "off"
@@ -350,11 +396,10 @@ GeneratePlot <- function(df.density.normalised,
   return(plot.contour)
 }
 
-message("Copyright (C) 2019, Joost Geenen\n",
+message("Copyright (C) 2020, Joost Geenen\n",
         "This program comes with ABSOLUTELY NO WARRANTY.\n",
         "This is free software, and you are welcome to redistribute it",
-        " under certain conditions.\n",
-        "You should have received a copy of the GNU",
+        " under certain conditions.\n","You should have received a copy of the GNU",
         " General Public License along with this program.\n",
         "If not, see <https://www.gnu.org/licenses/>.")
 ### ----------------------------------------------------------------------- ###
@@ -373,12 +418,14 @@ message("Copyright (C) 2019, Joost Geenen\n",
 
 # Then, prepare to load your data:
 
-# - set the filename of your raw datafile, do not forget the .csv
+# - set the filepath of your raw datafile, do not forget the .csv
+#   when your datafile is in the same folder as this script, 
+#   only the filename is needed (e.g. "your_data.scv")
 # - set whether your data has a header (ie, column names)
 # - set the type of decimal seperator (, or . within " ")
 # - set the column separator used for your .csv file (within " "). 
 # You can see the seperator when opening your csv file with, for example, Excel. 
-filename   <- "YourData.csv"
+filepath   <- "eHTA case study data, used for figure 2.csv"
 has.header <- FALSE
 decimal.separator <- ","
 column.separator  <- ";"
@@ -408,7 +455,7 @@ bin.number <- 1000
 
 # You can specify the following plot characteristics: 
 # - specify desired contour levels. 
-# - set as, for example: contour.levels <- c(0.9, 0.5, 0.1)
+# - set as, for example: contour.levels <- c(0.95, 0.5, 0.1)
 contour.levels <- c(0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1)
 
 # - Specify WTP thresholds to add to the plot. 
@@ -436,9 +483,18 @@ font.face    <- "bold"         ## choose bold or plain or italix
 font.family  <- "sans"         ## 
 legend.title <- "Density"      ## Set your desired legend title
 
+# - Set plot type. "combined" yields contours as well as density, 
+# "density" provides only the density plot and "contour" provides
+# only the contours. Default = "combined"
+plot.type <- "combined"
+
+# - Set color-gradient or a grayscale gradient (e.g. for printing)
+#  It is not recommended to use grayscale, default = FALSE
+grayscale <- FALSE
+
 # Now, proceed running the following parts, 
 # parts within a 'do not change the part in between / below (or above)
-# should just be run but do not require input from the user. 
+# should just be run but do not require input from the user. P
 
 ### -------------------- End of data and plot settings -------------------- ###
 ### ----------------------------------------------------------------------- ###
@@ -448,7 +504,7 @@ legend.title <- "Density"      ## Set your desired legend title
 ### ----------------------------------------------------------------------- ###
 
 # Load data
-data <- read.csv(file   = filename, 
+data <- read.csv(file   = filepath, 
                  header = has.header, 
                  dec    = decimal.separator, 
                  sep    = column.separator)
@@ -463,7 +519,7 @@ kde.data <- kde2d(data[, 1], data[, 2], n = bin.number)
 plot.data.contour     <- ProcessContourData(kde.data)
 df.density.normalised <- GenerateNormalisedDensity(kde.data)
 
-# Calculate average PSA results
+#calculate average PSA results
 if (add.average.PSA == TRUE) {
   average.PSA <- c(mean(data[, 1]), mean(data[, 2]))
 } else {
@@ -478,6 +534,8 @@ contour.plot <- GeneratePlot(df.density.normalised,
                              font.size,
                              font.face,
                              font.family,
+                             plot.type,
+                             grayscale,
                              x.axis.title,
                              y.axis.title,
                              clipping = FALSE,
@@ -486,7 +544,7 @@ contour.plot <- GeneratePlot(df.density.normalised,
                              basecase = basecase,
                              average.PSA = average.PSA)
 
-# Display the plot
+# display the plot
 grid.newpage()
 grid.draw(contour.plot)
 
@@ -501,11 +559,14 @@ grid.draw(contour.plot)
 
 # If you wish to save this plot, enter the required filename and settings here
 
-# Set the file name of the new plot. 
-# WARNING: It will overwrite files / plots with the same name!
-filename <- "ExampleFigure.PNG"
+# set your filepath (ie, the folder)
+filepath <- "C://your_path/saved_PSAReD_plots/"
 
-# Set plot dpi (resolution)
+# set the file name of the new plot. 
+# WARNING: It will overwrite files / plots with the same name!
+filename <- "Figurename.PNG"
+
+# set plot dpi (resolution)
 dpi <- 600
 
 # Use size of the "Plots" Panel in Rstudio?
@@ -527,9 +588,9 @@ plot.height <- 4.25
 ### ----------------------------------------------------------------------- ###
 
 if (use.my.panel.size == TRUE) {
-  ggsave(contour.plot, filename = filename, dpi = dpi)
+  ggsave(contour.plot, path = filepath, filename = filename, dpi = dpi)
 } else {
-  ggsave(contour.plot, filename = filename, dpi = dpi,
+  ggsave(contour.plot, path = filepath, filename = filename, dpi = dpi,
          width = plot.width, height = plot.height, units = "in")
 }
 ### ----------------------------------------------------------------------- ###
@@ -541,7 +602,7 @@ if (use.my.panel.size == TRUE) {
 ### ----------------------------------------------------------------------- ###
 
 # If you wish, you can zoom in on a particular area of the plot. 
-# Set x- and y range as c(min, max)
+# set x- and y range as c(min, max)
 x.range <- c(0, 0.5)
 y.range <- c(1500, 8000)
 
@@ -559,7 +620,7 @@ clip <- FALSE
 clip <- FALSE
 
 # 2: Extend panel and clip data to fit the panel, this may yield a pretier plot. 
-# Set:
+# set:
 clip <- TRUE
 
 # Now, run the part below. 
@@ -581,6 +642,8 @@ zoomed.plot <- GeneratePlot(df.density.normalised,
                             font.size,
                             font.face,
                             font.family,
+                            plot.type,
+                            grayscale,
                             x.axis.title,
                             y.axis.title,
                             x.range,
@@ -602,11 +665,14 @@ grid.draw(zoomed.plot)
 
 # If you wish to save this plot, enter the required filename and settings here
 
-# Set the file name of the new plot. 
-# WARNING: It will overwrite files / plots with the same name!
-filename <- "ExampleFigure.PNG"
+# set your filepath (ie, the folder)
+filepath  <- "C://your_path/saved_PSAReD_plots/"
 
-# Set plot dpi (resolution)
+# set the file name of the new plot. 
+# WARNING: It will overwrite files / plots with the same name!
+filename <- "Figurename.PNG"
+
+# set plot dpi (resolution)
 dpi <- 600
 
 # Use size of the "Plots" Panel in Rstudio?
@@ -628,9 +694,9 @@ plot.height <- 4.25
 ### ----------------------------------------------------------------------- ###
 
 if (use.my.panel.size == TRUE) {
-  ggsave(zoomed.plot, filename = filename, dpi = dpi)
+  ggsave(zoomed.plot, path = filepath, filename = filename, dpi = dpi)
 } else {
-  ggsave(zoomed.plot, filename = filename, dpi = dpi,
+  ggsave(zoomed.plot, path = filepath, filename = filename, dpi = dpi,
          width = plot.width, height = plot.height, units = "in")
 }
 ### ----------------------------------------------------------------------- ###
