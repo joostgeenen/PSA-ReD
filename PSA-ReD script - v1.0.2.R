@@ -418,8 +418,9 @@ message("Copyright (C) 2020, Joost Geenen\n",
 
 # Then, prepare to load your data:
 
-# - set the directory where you file is locates as workingdirectory
-# - set the filename of your raw datafile, do not forget the .csv
+# - set the filepath of your raw datafile, do not forget the .csv
+#   when your datafile is in the same folder as this script, 
+#   only the filename is needed (e.g. "your_data.scv")
 # - set whether your data has a header (ie, column names)
 # - set the type of decimal seperator (, or . within " ")
 # - set the column separator used for your .csv file (within " "). 
